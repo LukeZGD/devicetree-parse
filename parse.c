@@ -266,7 +266,7 @@ strbuf_printf(struct strbuf *strbuf, const char *fmt, ...) {
 	return true;
 }
 
-static bool
+__attribute__((unused)) static bool
 print_property_hex_dump(struct strbuf *sb, const void *data, size_t size) {
 	const uint8_t *p = data;
 	const uint8_t *end = p + size;
@@ -282,7 +282,7 @@ print_property_hex_dump(struct strbuf *sb, const void *data, size_t size) {
 	return ok;
 }
 
-static bool
+__attribute__((unused)) static bool
 print_property_hex_int(struct strbuf *sb, const void *data, size_t size) {
 	uint64_t value = read_uint(data, size);
 	if (value == 0) {
@@ -332,7 +332,7 @@ print_property_function(struct strbuf *sb, const void *data, size_t size) {
 	return print_property_hex_string(sb, data, size);
 }
 
-static bool
+__attribute__((unused)) static bool
 print_property_phys_ranges(struct strbuf *sb, const void *data, size_t size) {
 	assert(size % sizeof(struct phys_range) == 0 && size > 0);
 	const struct phys_range *phys_range = data;
@@ -347,7 +347,7 @@ print_property_phys_ranges(struct strbuf *sb, const void *data, size_t size) {
 	return ok;
 }
 
-static bool
+__attribute__((unused)) static bool
 print_property_segment_ranges(struct strbuf *sb, const void *data, size_t size) {
 	assert(size > 0 && size % sizeof(struct segment_range) == 0);
 	const struct segment_range *segment_range = data;

@@ -167,8 +167,13 @@ int main(int argc, char **argv) {
     fseek(f, 0, SEEK_SET);
 
     char *json_data = (char *)malloc(fsize + 1);
-    fread(json_data, 1, fsize, f);
+    size_t bytes_read = fread(json_data, 1, fsize, f);
     fclose(f);
+    if (bytes_read != (size_t)fsize) {
+        fprintf(stderr, "Error: Failed to read entire file (read %zu of %ld bytes)\n", bytes_read, fsize);
+        free(json_data);
+        return 1;
+    }
     json_data[fsize] = '\0';
 
     cJSON *root = cJSON_Parse(json_data);
