@@ -106,15 +106,16 @@ devicetree_iterate(const void **data, size_t size,
 	return devicetree_iterate_node(data, end, 0, &stop, node_callback, property_callback);
 }
 
+static void
+do_not_scan_children_cb(unsigned depth, const void *node, size_t size,
+		unsigned n_properties, unsigned n_children, bool *stop) {
+	if (depth != 0) {
+		*stop = true;
+	}
+}
+
 bool
 devicetree_node_scan_properties(const void *node, size_t size,
 		devicetree_iterate_property_callback_t property_callback) {
-	devicetree_iterate_node_callback_t do_not_scan_children =
-			^void(unsigned depth, const void *node, size_t size,
-					unsigned n_properties, unsigned n_children, bool *stop) {
-		if (depth != 0) {
-			*stop = true;
-		}
-	};
-	return devicetree_iterate(&node, size, do_not_scan_children, property_callback);
+	return devicetree_iterate(&node, size, do_not_scan_children_cb, property_callback);
 }

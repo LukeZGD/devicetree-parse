@@ -427,54 +427,59 @@ print_indent(unsigned depth) {
 	}
 }
 
+// Static state shared with callbacks during devicetree_print
+static const char *g_node_name;
+static struct strbuf g_sb;
+
+static void
+find_node_name_cb(unsigned depth, const char *name,
+		const void *value, size_t size, uint32_t flags, bool *stop) {
+	if (strcmp(name, "name") == 0) {
+		g_node_name = (const char *)value;
+	}
+}
+
+static void
+node_cb(unsigned depth, const void *node, size_t size,
+		unsigned n_properties, unsigned n_children, bool *stop) {
+	if (stop == NULL) {
+		print_indent(depth);
+		printf("],\n");
+		return;
+	}
+
+	bool ok = devicetree_node_scan_properties(node, size, find_node_name_cb);
+	if (!ok) {
+		g_node_name = "NODE";
+	}
+	print_indent(depth);
+	if (depth == 0) {
+		printf("\"%s\": ", g_node_name);
+	}
+	printf("[\n");
+}
+
+static void
+property_cb(unsigned depth, const char *name,
+		const void *value, size_t size, uint32_t flags, bool *stop) {
+	print_indent(depth);
+	printf("{\"name\": \"%s\", \"length\": %zu, \"flags\": %u", name, size, flags);
+	if (size > 0) {
+		g_sb.pos = 0;
+		bool complete = print_property(&g_sb, name, value, size);
+		printf("%s%s", g_sb.str, complete ? "" : "...");
+	}
+	printf(" },\n");
+}
+
 static bool
 devicetree_print(const void *data, size_t size) {
-	__block const char *node_name;
-	__block struct strbuf sb;
-	strbuf_alloc(&sb, print_verbose ? -1 : 64);
-	devicetree_iterate_property_callback_t find_node_name_cb =
-			^(unsigned depth, const char *name,
-					const void *value, size_t size, uint32_t flags, bool *stop) {
-		if (strcmp(name, "name") == 0) {
-			node_name = (const char *)value;
-		}
-	};
-	devicetree_iterate_node_callback_t node_cb =
-			^(unsigned depth, const void *node, size_t size,
-					unsigned n_properties, unsigned n_children, bool *stop) {
-		if (stop == NULL) {
-			print_indent(depth);
-			printf("],\n");
-			return;
-		}
-
-		bool ok = devicetree_node_scan_properties(node, size, find_node_name_cb);
-		if (!ok) {
-			node_name = "NODE";
-		}
-		print_indent(depth);
-		if (depth == 0) {
-			printf("\"%s\": ", node_name);
-		}
-		printf("[\n");
-	};
-	devicetree_iterate_property_callback_t property_cb =
-			^(unsigned depth, const char *name,
-					const void *value, size_t size, uint32_t flags, bool *stop) {
-		print_indent(depth);
-		printf("{\"name\": \"%s\", \"length\": %zu, \"flags\": %u", name, size, flags);
-		if (size > 0) {
-			sb.pos = 0;
-			bool complete = print_property(&sb, name, value, size);
-			printf("%s%s", sb.str, complete ? "" : "...");
-		}
-		printf(" },\n");
-	};
+	strbuf_alloc(&g_sb, print_verbose ? -1 : 64);
 	const void *processed = data;
-        printf("{");
+	printf("{");
 	bool ok = devicetree_iterate(&processed, size, node_cb, property_cb);
-        printf("}");
-	strbuf_free(&sb);
+	printf("}");
+	strbuf_free(&g_sb);
 	return (ok && (processed == (uint8_t *)data + size));
 }
 
@@ -533,8 +538,7 @@ main(int argc, const char *argv[]) {
 */
 	// Parse arguments.
 	if (argidx != argc - 1) {
-		//printf("usage: %s [-v] [-t] <devicetree-file>\n", getprogname());
-		printf("usage: %s <devicetree-file>\n", getprogname());
+		printf("usage: %s <devicetree-file>\n", argv[0]);
 		return 1;
 	}
 	const char *file = argv[argidx];

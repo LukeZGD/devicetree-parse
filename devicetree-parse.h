@@ -9,13 +9,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef void (^devicetree_iterate_node_callback_t)(
+// Replaced block syntax (^) with function pointers (*)
+typedef void (*devicetree_iterate_node_callback_t)(
 		unsigned depth,
 		const void *node, size_t size,
 		unsigned n_properties, unsigned n_children,
 		bool *stop);
 
-typedef void (^devicetree_iterate_property_callback_t)(
+typedef void (*devicetree_iterate_property_callback_t)(
 		unsigned depth,
 		const char *name,
 		const void *value, size_t size,
