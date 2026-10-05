@@ -1,44 +1,71 @@
-TARGET = devicetree-parse
+TARGETS := devicetree-parse devicetree-repack
 
 DEBUG   ?= 0
-ARCH    ?= x86_64
-SDK     ?= macosx
+UNAME_S := $(shell uname -s)
 
-SYSROOT  := $(shell xcrun --sdk $(SDK) --show-sdk-path)
-ifeq ($(SYSROOT),)
-$(error Could not find SDK "$(SDK)")
-endif
-CLANG    := $(shell xcrun --sdk $(SDK) --find clang)
-CC       := $(CLANG) -isysroot $(SYSROOT) -arch $(ARCH)
-
-CFLAGS  = -O2 -Wall -fobjc-arc
-LDFLAGS =
+# Base C flags
+CFLAGS  += -O2 -Wall
+LDFLAGS +=
 
 ifneq ($(DEBUG),0)
 DEFINES += -DDEBUG=$(DEBUG)
 endif
 
-FRAMEWORKS =
+# --- macOS Configuration ---
+ifeq ($(UNAME_S),Darwin)
+	SDK     ?= macosx
+	ARCHS   ?= x86_64 arm64
+	SYSROOT := $(shell xcrun --sdk $(SDK) --show-sdk-path 2>/dev/null)
 
-all: devicetree-parse devicetree-repack
+	ifeq ($(SYSROOT),)
+		$(error Could not find macOS SDK "$(SDK)")
+	endif
 
-devicetree-parse: devicetree-parse.o parse.o repack.o
-	$(CC) $(CFLAGS) $(FRAMEWORKS) $(DEFINES) $(LDFLAGS) -o $@ devicetree-parse.o parse.c
+	CLANG   := $(shell xcrun --sdk $(SDK) --find clang)
+	CC      := $(CLANG) -isysroot $(SYSROOT)
 
-devicetree-repack: repack.o
-	$(CC) $(CFLAGS) $(FRAMEWORKS) $(DEFINES) $(LDFLAGS) -o $@ repack.m
+	# Format multi-arch build flags (-arch x86_64 -arch arm64)
+	ARCH_FLAGS := $(foreach arch,$(ARCHS),-arch $(arch))
+	CFLAGS     += $(ARCH_FLAGS) -fobjc-arc
+	FRAMEWORKS += -framework Foundation -framework CoreFoundation
 
-devicetree-parse.o: devicetree-parse.c $(HEADERS)
-	$(CC) $(CFLAGS) $(FRAMEWORKS) $(DEFINES) $(LDFLAGS) -c -o $@ devicetree-parse.c
+	# Source file for repack target on macOS
+	REPACK_SRC := repack.m
 
-parse.o: parse.c $(HEADERS)
-	$(CC) $(CFLAGS) $(FRAMEWORKS) $(DEFINES) $(LDFLAGS) -c -o $@ parse.c
+# --- Linux Configuration ---
+else ifeq ($(UNAME_S),Linux)
+	CC      ?= gcc
+	CFLAGS  += -D_GNU_SOURCE
+	LIBS    += -lcjson -lm
 
-repack.o: repack.m $(HEADERS)
-	$(CC) $(CFLAGS) $(FRAMEWORKS) $(DEFINES) $(LDFLAGS) -c -o $@ repack.m
+	# Source file for repack target on Linux
+	REPACK_SRC := repack.c
+endif
 
-main.o: main.c $(HEADERS)
-	$(CC) $(CFLAGS) $(FRAMEWORKS) $(DEFINES) $(LDFLAGS) -c -o $@ main.c
+REPACK_OBJ := $(REPACK_SRC:.c=.o)
+REPACK_OBJ := $(REPACK_OBJ:.m=.o)
+
+# Headers list for tracking dependencies
+HEADERS := $(wildcard *.h)
+
+.PHONY: all clean
+
+all: $(TARGETS)
+
+# Binary Link Targets
+devicetree-parse: devicetree-parse.o parse.o
+	$(CC) $(CFLAGS) $(DEFINES) $^ $(LDFLAGS) -o $@
+
+devicetree-repack: $(REPACK_OBJ)
+	$(CC) $(CFLAGS) $(DEFINES) $^ $(LDFLAGS) $(FRAMEWORKS) $(LIBS) -o $@
+
+# C Object Compilation Rule
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) $(DEFINES) -c $< -o $@
+
+# Objective-C Object Compilation Rule (macOS)
+%.o: %.m $(HEADERS)
+	$(CC) $(CFLAGS) $(DEFINES) -c $< -o $@
 
 clean:
-	rm -f -- *.o devicetree-parse devicetree-repack
+	rm -f -- *.o $(TARGETS)
