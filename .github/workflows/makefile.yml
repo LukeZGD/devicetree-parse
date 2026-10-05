@@ -1,0 +1,55 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        arch:
+          - runner: ubuntu-22.04
+            name: x86_64
+          - runner: ubuntu-22.04-arm
+            name: aarch64
+
+    name: build-linux-${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake
+          curl -LO https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.zip
+
+          unzip v1.7.19.zip
+          cd cJ*
+          mkdir build
+          cd build
+          cmake .. -DBUILD_SHARED_LIBS=OFF
+          make
+          sudo make install
+          cd ../..
+
+
+      - name: run make
+        run: make all
+
+      - name: Zip devicetree-parse
+        run: zip -r devicetree-parse_linux-${{ matrix.arch.name }}.zip devicetree-parse devicetree-repack
+
+      - name: Update latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload latest \
+            devicetree-parse_linux-${{ matrix.arch.name }}.zip \
+            --clobber -R ${{ github.repository }}
+
+          gh release edit latest \
+            --title "Latest" \
+            --target ${{ github.sha }} -R ${{ github.repository }}
